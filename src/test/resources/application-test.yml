@@ -1,0 +1,27 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/shop_inventory_test
+    username: shop
+    password: shop123
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+  flyway:
+    enabled: false
+
+app:
+  jwt:
+    secret: test-secret-key-that-is-long-enough-for-hmac-sha-256
+    expiration-ms: 86400000
+  first-org-name: Test Shop
+  admin-email: admin@shop.local
+  admin-password: admin123
+  super-admin-email: super@shop.local
+  super-admin-password: super123
+  default-currency: INR
+
+logging:
+  level:
+    org.hibernate.SQL: WARN
+    org.springframework.test: WARN

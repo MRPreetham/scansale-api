@@ -1,0 +1,27 @@
+# Production profile — every value comes from the environment; startup fails fast if missing.
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    baseline-on-migrate: false
+
+app:
+  jwt:
+    secret: ${JWT_SECRET}
+    expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+  first-org-name: ${FIRST_ORG_NAME}
+  admin-email: ${ADMIN_EMAIL}
+  admin-password: ${ADMIN_PASSWORD}
+  super-admin-email: ${SUPER_ADMIN_EMAIL}
+  super-admin-password: ${SUPER_ADMIN_PASSWORD}
+  default-currency: ${DEFAULT_CURRENCY:INR}
+
+logging:
+  level:
+    org.hibernate.SQL: INFO
