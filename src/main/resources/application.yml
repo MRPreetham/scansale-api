@@ -1,8 +1,8 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/shop_inventory
-    username: shop
-    password: shop123
+    url: ${DB_URL:jdbc:postgresql://ep-sweet-sea-aygthkge-pooler.c-5.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require}
+    username: ${DB_USER:neondb_owner}
+    password: ${DB_PASSWORD:shop123}
   jpa:
     hibernate:
       ddl-auto: validate
@@ -12,6 +12,9 @@ spring:
     open-in-view: false
   flyway:
     baseline-on-migrate: true
+
+server:
+  port: ${PORT:8080}
 
 app:
   jwt:
