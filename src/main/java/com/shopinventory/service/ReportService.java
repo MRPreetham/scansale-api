@@ -40,15 +40,27 @@ public class ReportService {
 
     @Transactional(readOnly = true)
     public DailyReportResponse daily(UUID orgId, String dateParam) {
-        LocalDate date;
+        DailyReportResponse period = period(orgId, dateParam, dateParam);
+        return new DailyReportResponse(dateParam, period.totalSalesAmount(), period.totalUnitsSold(),
+                period.paymentBreakdown(), period.rows());
+    }
+
+    @Transactional(readOnly = true)
+    public DailyReportResponse period(UUID orgId, String fromParam, String toParam) {
+        LocalDate fromDate;
+        LocalDate toDate;
         try {
-            date = LocalDate.parse(dateParam);
+            fromDate = LocalDate.parse(fromParam);
+            toDate = LocalDate.parse(toParam);
         } catch (DateTimeParseException e) {
-            throw ApiException.badRequest("date must be in yyyy-MM-dd format");
+            throw ApiException.badRequest("from and to must be in yyyy-MM-dd format");
+        }
+        if (toDate.isBefore(fromDate)) {
+            throw ApiException.badRequest("to must not be before from");
         }
         ZoneId zone = ZoneId.systemDefault();
-        Instant from = date.atStartOfDay(zone).toInstant();
-        Instant to = date.plusDays(1).atStartOfDay(zone).toInstant();
+        Instant from = fromDate.atStartOfDay(zone).toInstant();
+        Instant to = toDate.plusDays(1).atStartOfDay(zone).toInstant();
 
         List<Product> products = productRepository.findAllByOrgIdOrderByNameAsc(orgId);
 
@@ -83,8 +95,8 @@ public class ReportService {
             paymentBreakdown.put(((PaymentMode) row[0]).name(), (BigDecimal) row[1]);
         }
 
-        return new DailyReportResponse(date.toString(), totalSalesAmount, totalUnitsSold,
-                paymentBreakdown, rows);
+        return new DailyReportResponse(fromDate.toString() + " to " + toDate.toString(),
+                totalSalesAmount, totalUnitsSold, paymentBreakdown, rows);
     }
 
     private Map<UUID, BigDecimal> toMap(List<Object[]> rows) {

@@ -50,7 +50,16 @@ public class Product {
     private String unit = "pcs";
 
     @Column(nullable = false, precision = 19, scale = 2)
+    private BigDecimal costPrice = BigDecimal.ZERO;
+
+    @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal sellingPrice = BigDecimal.ZERO;
+
+    @Column(nullable = false, precision = 19, scale = 2)
+    private BigDecimal profitMargin = BigDecimal.ZERO;
+
+    @Column(precision = 15, scale = 3)
+    private BigDecimal size;
 
     @Column(nullable = false, precision = 15, scale = 3)
     private BigDecimal openingQty = BigDecimal.ZERO;

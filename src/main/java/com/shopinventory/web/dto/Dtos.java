@@ -37,7 +37,10 @@ public final class Dtos {
             @NotBlank String name,
             @NotBlank String barcode,
             String unit,
+            BigDecimal costPrice,
             BigDecimal sellingPrice,
+            BigDecimal profitMargin,
+            BigDecimal size,
             BigDecimal reorderLevel,
             BigDecimal openingQty,
             String notes) {
@@ -45,7 +48,8 @@ public final class Dtos {
 
     public record ProductResponse(
             UUID id, String sku, String name, String barcode, String unit,
-            BigDecimal sellingPrice, BigDecimal openingQty, BigDecimal availableQty,
+            BigDecimal costPrice, BigDecimal sellingPrice, BigDecimal profitMargin, BigDecimal size,
+            BigDecimal openingQty, BigDecimal availableQty,
             BigDecimal reorderLevel, boolean lowStock, String notes,
             java.time.Instant createdAt, java.time.Instant updatedAt) {
     }
@@ -67,7 +71,11 @@ public final class Dtos {
 
     public record SaleLineResponse(
             UUID productId, String barcode, String name,
-            BigDecimal qty, BigDecimal unitPrice, BigDecimal amount) {
+            BigDecimal qty, BigDecimal unitPrice, BigDecimal amount, String unit, BigDecimal size) {
+    }
+
+    public record ShopDetails(
+            String name, String address, String phone, String email, String gstin, String currency) {
     }
 
     public record SaleResponse(
@@ -75,7 +83,7 @@ public final class Dtos {
             java.time.Instant soldAt, String cashierName,
             com.shopinventory.domain.sale.PaymentMode paymentMode,
             String status, BigDecimal totalQty, BigDecimal totalAmount,
-            List<SaleLineResponse> lines) {
+            List<SaleLineResponse> lines, ShopDetails shop) {
     }
 
     public record SalePageResponse(List<SaleResponse> items, long total, int page, int size) {
@@ -127,10 +135,10 @@ public final class Dtos {
             com.shopinventory.domain.user.MembershipStatus status) {
     }
 
-    public record SettingsRequest(String orgName, String currency) {
+    public record SettingsRequest(String orgName, String currency, String address, String phone, String email, String gstin) {
     }
 
-    public record SettingsResponse(String orgName, String currency) {
+    public record SettingsResponse(String orgName, String currency, String address, String phone, String email, String gstin) {
     }
 
     public record OnboardOrgRequest(

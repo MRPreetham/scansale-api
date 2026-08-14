@@ -2,6 +2,8 @@ package com.shopinventory.service;
 
 import com.shopinventory.domain.organization.Organization;
 import com.shopinventory.domain.organization.OrganizationRepository;
+import com.shopinventory.domain.organization.OrgSettings;
+import com.shopinventory.domain.organization.OrgSettingsRepository;
 import com.shopinventory.domain.user.Membership;
 import com.shopinventory.domain.user.MembershipRepository;
 import com.shopinventory.domain.user.MembershipStatus;
@@ -27,17 +29,20 @@ import java.util.UUID;
 public class OrgAdminService {
 
     private final OrganizationRepository organizationRepository;
+    private final OrgSettingsRepository orgSettingsRepository;
     private final MembershipRepository membershipRepository;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuditService auditService;
 
     public OrgAdminService(OrganizationRepository organizationRepository,
+                           OrgSettingsRepository orgSettingsRepository,
                            MembershipRepository membershipRepository,
                            UserRepository userRepository,
                            PasswordEncoder passwordEncoder,
                            AuditService auditService) {
         this.organizationRepository = organizationRepository;
+        this.orgSettingsRepository = orgSettingsRepository;
         this.membershipRepository = membershipRepository;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
@@ -47,7 +52,12 @@ public class OrgAdminService {
     @Transactional(readOnly = true)
     public SettingsResponse settings(UUID orgId) {
         Organization org = loadOrg(orgId);
-        return new SettingsResponse(org.getName(), org.getCurrency());
+        OrgSettings s = orgSettingsRepository.findByOrgId(orgId).orElse(null);
+        return new SettingsResponse(org.getName(), org.getCurrency(),
+                s == null ? null : s.getAddress(),
+                s == null ? null : s.getPhone(),
+                s == null ? null : s.getEmail(),
+                s == null ? null : s.getGstin());
     }
 
     @Transactional
@@ -60,9 +70,24 @@ public class OrgAdminService {
             org.setCurrency(request.currency().trim().toUpperCase());
         }
         organizationRepository.save(org);
+
+        OrgSettings settings = orgSettingsRepository.findByOrgId(orgId).orElseGet(() -> {
+            OrgSettings s = new OrgSettings();
+            Organization ref = new Organization();
+            ref.setId(orgId);
+            s.setOrg(ref);
+            return s;
+        });
+        if (request.address() != null) settings.setAddress(trimToNull(request.address()));
+        if (request.phone() != null) settings.setPhone(trimToNull(request.phone()));
+        if (request.email() != null) settings.setEmail(trimToNull(request.email()));
+        if (request.gstin() != null) settings.setGstin(trimToNull(request.gstin()));
+        orgSettingsRepository.save(settings);
+
         auditService.log(orgId, loadActor(principal), "ORG_SETTINGS_UPDATE", "Organization", orgId.toString(),
                 Map.of("orgName", org.getName(), "currency", org.getCurrency()));
-        return new SettingsResponse(org.getName(), org.getCurrency());
+        return new SettingsResponse(org.getName(), org.getCurrency(),
+                settings.getAddress(), settings.getPhone(), settings.getEmail(), settings.getGstin());
     }
 
     @Transactional(readOnly = true)
@@ -154,5 +179,11 @@ public class OrgAdminService {
 
     private User loadActor(AppPrincipal principal) {
         return userRepository.findById(principal.userId()).orElseThrow();
+    }
+
+    private static String trimToNull(String value) {
+        if (value == null) return null;
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 }

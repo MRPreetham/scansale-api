@@ -1,6 +1,9 @@
 package com.shopinventory.service;
 
 import com.shopinventory.domain.organization.Organization;
+import com.shopinventory.domain.organization.OrganizationRepository;
+import com.shopinventory.domain.organization.OrgSettings;
+import com.shopinventory.domain.organization.OrgSettingsRepository;
 import com.shopinventory.domain.product.Product;
 import com.shopinventory.domain.product.ProductRepository;
 import com.shopinventory.domain.sale.Sale;
@@ -18,6 +21,7 @@ import com.shopinventory.web.dto.Dtos.SaleLineResponse;
 import com.shopinventory.web.dto.Dtos.SaleRequest;
 import com.shopinventory.web.dto.Dtos.SalePageResponse;
 import com.shopinventory.web.dto.Dtos.SaleResponse;
+import com.shopinventory.web.dto.Dtos.ShopDetails;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,15 +40,20 @@ public class SaleService {
     private final ProductRepository productRepository;
     private final StockMovementRepository stockMovementRepository;
     private final UserRepository userRepository;
+    private final OrganizationRepository organizationRepository;
+    private final OrgSettingsRepository orgSettingsRepository;
     private final AuditService auditService;
 
     public SaleService(SaleRepository saleRepository, ProductRepository productRepository,
                        StockMovementRepository stockMovementRepository, UserRepository userRepository,
+                       OrganizationRepository organizationRepository, OrgSettingsRepository orgSettingsRepository,
                        AuditService auditService) {
         this.saleRepository = saleRepository;
         this.productRepository = productRepository;
         this.stockMovementRepository = stockMovementRepository;
         this.userRepository = userRepository;
+        this.organizationRepository = organizationRepository;
+        this.orgSettingsRepository = orgSettingsRepository;
         this.auditService = auditService;
     }
 
@@ -110,8 +119,8 @@ public class SaleService {
         int seq = (maxSeq == null ? 0 : maxSeq) + 1;
 
         Sale sale = new Sale();
-        Organization org = new Organization();
-        org.setId(orgId);
+        Organization org = organizationRepository.findById(orgId)
+                .orElseThrow(() -> ApiException.forbidden("Organization not found"));
         sale.setOrg(org);
         sale.setYear(year);
         sale.setNumberSeq(seq);
@@ -136,6 +145,8 @@ public class SaleService {
             line.setProduct(product);
             line.setBarcode(product.getBarcode());
             line.setName(product.getName());
+            line.setUnit(product.getUnit());
+            line.setSize(product.getSize());
             line.setQty(qty);
             line.setUnitPrice(unitPrice);
             line.setAmount(amount);
@@ -173,10 +184,18 @@ public class SaleService {
     private SaleResponse toResponse(Sale sale) {
         List<SaleLineResponse> lines = sale.getLines().stream()
                 .map(l -> new SaleLineResponse(l.getProduct().getId(), l.getBarcode(), l.getName(),
-                        l.getQty(), l.getUnitPrice(), l.getAmount()))
+                        l.getQty(), l.getUnitPrice(), l.getAmount(), l.getUnit(), l.getSize()))
                 .toList();
+        Organization org = sale.getOrg();
+        OrgSettings s = orgSettingsRepository.findByOrgId(org.getId()).orElse(null);
+        ShopDetails shop = new ShopDetails(org.getName(),
+                s == null ? null : s.getAddress(),
+                s == null ? null : s.getPhone(),
+                s == null ? null : s.getEmail(),
+                s == null ? null : s.getGstin(),
+                org.getCurrency());
         return new SaleResponse(sale.getId(), sale.getSaleNumber(), sale.getSoldAt(),
                 sale.getCashier().getName(), sale.getPaymentMode(),
-                sale.getStatus().name(), sale.getTotalQty(), sale.getTotalAmount(), lines);
+                sale.getStatus().name(), sale.getTotalQty(), sale.getTotalAmount(), lines, shop);
     }
 }

@@ -23,8 +23,12 @@ class OrgAdminApiTest extends BaseApiTest {
         assertEquals("Test Shop", settings.get("orgName").asText());
 
 JsonNode updated = putJson("/api/v1/organization/settings", token,
-                "{\"currency\":\"USD\"}", 200);
+                "{\"currency\":\"USD\",\"address\":\"Shop Street 1\",\"phone\":\"9876543210\",\"email\":\"shop@example.com\",\"gstin\":\"GST123\"}", 200);
         assertEquals("USD", updated.get("currency").asText());
+        assertEquals("Shop Street 1", updated.get("address").asText());
+        assertEquals("9876543210", updated.get("phone").asText());
+        assertEquals("shop@example.com", updated.get("email").asText());
+        assertEquals("GST123", updated.get("gstin").asText());
     }
 
     @Test

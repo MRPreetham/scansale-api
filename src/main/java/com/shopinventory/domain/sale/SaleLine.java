@@ -42,6 +42,12 @@ public class SaleLine {
     @Column(nullable = false, length = 200)
     private String name;
 
+    @Column(nullable = false, length = 20)
+    private String unit = "pcs";
+
+    @Column(precision = 15, scale = 3)
+    private BigDecimal size;
+
     @Column(nullable = false, precision = 15, scale = 3)
     private BigDecimal qty;
 

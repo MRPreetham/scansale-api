@@ -113,6 +113,17 @@ public class ProductService {
             });
         }
         applyFields(product, request, true);
+        if (request.openingQty() != null) {
+            BigDecimal newQty = request.openingQty();
+            if (newQty.signum() < 0) {
+                throw ApiException.badRequest("Quantity cannot be negative");
+            }
+            BigDecimal delta = newQty.subtract(product.getAvailableQty());
+            if (delta.signum() != 0) {
+                product.setAvailableQty(newQty);
+                stockMovementRepository.save(movement(orgId, product, MovementType.ADJUSTMENT, delta, principal.userId(), null));
+            }
+        }
         Product saved = productRepository.save(product);
         auditService.log(orgId, userRepository.findById(principal.userId()).orElseThrow(),
                 "PRODUCT_UPDATE", "Product", saved.getId().toString(),
@@ -161,7 +172,10 @@ public class ProductService {
         if (!partial || request.name() != null) product.setName(request.name().trim());
         if (!partial || request.barcode() != null) product.setBarcode(request.barcode().trim());
         if (!partial || request.unit() != null) product.setUnit(trimToNull(request.unit()) == null ? "pcs" : request.unit().trim());
+        if (!partial || request.costPrice() != null) product.setCostPrice(defaultZero(request.costPrice()));
         if (!partial || request.sellingPrice() != null) product.setSellingPrice(defaultZero(request.sellingPrice()));
+        if (!partial || request.profitMargin() != null) product.setProfitMargin(defaultZero(request.profitMargin()));
+        if (!partial || request.size() != null) product.setSize(request.size());
         if (!partial || request.reorderLevel() != null) product.setReorderLevel(defaultZero(request.reorderLevel()));
         if (!partial || request.notes() != null) product.setNotes(trimToNull(request.notes()));
     }
@@ -202,7 +216,8 @@ public class ProductService {
 
     private ProductResponse toResponse(Product p) {
         return new ProductResponse(p.getId(), p.getSku(), p.getName(), p.getBarcode(), p.getUnit(),
-                p.getSellingPrice(), p.getOpeningQty(), p.getAvailableQty(),
+                p.getCostPrice(), p.getSellingPrice(), p.getProfitMargin(), p.getSize(),
+                p.getOpeningQty(), p.getAvailableQty(),
                 p.getReorderLevel(), isLow(p), p.getNotes(), p.getCreatedAt(), p.getUpdatedAt());
     }
 

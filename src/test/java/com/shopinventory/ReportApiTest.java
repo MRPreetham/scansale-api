@@ -40,6 +40,34 @@ assertEquals(today, report.get("date").asText());
     }
 
     @Test
+    void periodReportCoversDateRange() throws Exception {
+        String token = adminToken();
+        JsonNode product = createProduct(token, "Cola", "4440000002", 40, 100);
+        postJson("/api/v1/sales", token,
+                "{\"lines\":[{\"barcode\":\"4440000002\",\"qty\":3}],\"paymentMode\":\"CASH\"}", 201);
+
+        String today = LocalDate.now().toString();
+        String yesterday = LocalDate.now().minusDays(1).toString();
+        JsonNode report = objectMapper.readTree(mockMvc.perform(
+                        get("/api/v1/reports/period?from=" + yesterday + "&to=" + today)
+                                .header("Authorization", bearer(token)))
+                .andReturn().getResponse().getContentAsString());
+
+        assertBigEquals("120.00", report.get("totalSalesAmount"));
+        assertBigEquals("3.000", report.get("totalUnitsSold"));
+    }
+
+    @Test
+    void periodReportRejectsToBeforeFrom() throws Exception {
+        String token = adminToken();
+        String today = LocalDate.now().toString();
+        String yesterday = LocalDate.now().minusDays(1).toString();
+        mockMvc.perform(get("/api/v1/reports/period?from=" + today + "&to=" + yesterday)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void invalidDateIsBadRequest() throws Exception {
         String token = adminToken();
         mockMvc.perform(get("/api/v1/reports/daily?date=not-a-date")

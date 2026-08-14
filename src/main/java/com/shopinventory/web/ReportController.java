@@ -27,4 +27,12 @@ public class ReportController {
                                      @RequestParam String date) {
         return reportService.daily(principal.orgId(), date);
     }
+
+    @GetMapping("/period")
+    @PreAuthorize("hasAuthority('" + Capabilities.REPORT_READ + "')")
+    public DailyReportResponse period(@AuthenticationPrincipal AppPrincipal principal,
+                                      @RequestParam String from,
+                                      @RequestParam String to) {
+        return reportService.period(principal.orgId(), from, to);
+    }
 }

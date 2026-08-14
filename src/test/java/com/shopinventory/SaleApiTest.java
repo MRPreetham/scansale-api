@@ -95,4 +95,18 @@ class SaleApiTest extends BaseApiTest {
                 .andReturn().getResponse().getContentAsString());
         assertEquals(1, sales.get("items").size());
     }
+
+    @Test
+    void saleResponseIncludesShopDetailsAndLineSnapshot() throws Exception {
+        String token = adminToken();
+        postJson("/api/v1/products", token,
+                "{\"name\":\"Cola Bottle\",\"barcode\":\"2220000007\",\"unit\":\"ml\","
+                        + "\"costPrice\":80,\"sellingPrice\":100,\"profitMargin\":25,\"size\":750,\"openingQty\":10}", 201);
+        JsonNode sale = postJson("/api/v1/sales", token,
+                "{\"lines\":[{\"barcode\":\"2220000007\",\"qty\":2}],\"paymentMode\":\"CASH\"}", 201);
+        assertEquals("Test Shop", sale.get("shop").get("name").asText());
+        assertEquals("INR", sale.get("shop").get("currency").asText());
+        assertEquals("ml", sale.get("lines").get(0).get("unit").asText());
+        assertBigEquals("750.000", sale.get("lines").get(0).get("size"));
+    }
 }
