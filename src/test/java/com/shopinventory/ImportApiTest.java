@@ -25,6 +25,113 @@ class ImportApiTest extends BaseApiTest {
         return objectMapper.readTree(result.getResponse().getContentAsString());
     }
 
+    private JsonNode previewWithMapping(String token, String csv, String mappingJson) throws Exception {
+        MockMultipartFile file = new MockMultipartFile("file", "stock.csv", "text/csv", csv.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        MvcResult result = mockMvc.perform(multipart("/api/v1/imports/preview")
+                        .file(file)
+                        .param("mapping", mappingJson)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andReturn();
+        return objectMapper.readTree(result.getResponse().getContentAsString());
+    }
+
+    @Test
+    void previewHonoursExplicitColumnMapping() throws Exception {
+        String token = adminToken();
+        createProduct(token, "Mapped", "4440000001", 5, 1);
+        String csv = "Item Code,Product Name,Rate,Stock Qty\n"
+                + "4440000001,Updated Name,9,30\n"
+                + "4440000002,Brand New,12,7";
+        JsonNode preview = previewWithMapping(token, csv,
+                "{\"barcode\":\"Item Code\",\"name\":\"Product Name\",\"price\":\"Rate\",\"qty\":\"Stock Qty\"}");
+
+        assertEquals(1, preview.get("newCount").asInt());
+        assertEquals(1, preview.get("updateCount").asInt());
+        assertEquals(0, preview.get("skipCount").asInt());
+    }
+
+    @Test
+    void previewRejectsMappingWithoutBarcodeColumn() throws Exception {
+        String token = adminToken();
+        String csv = "Name,Rate\n"
+                + "Coke,40";
+        mockMvc.perform(multipart("/api/v1/imports/preview")
+                        .file(new MockMultipartFile("file", "stock.csv", "text/csv",
+                                csv.getBytes(java.nio.charset.StandardCharsets.UTF_8)))
+                        .param("mapping", "{\"name\":\"Name\",\"price\":\"Rate\"}")
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void commitAppliesMappedColumns() throws Exception {
+        String token = adminToken();
+        String csv = "Item Code,Product Name,Rate,Stock Qty\n"
+                + "4440000003,Sprite,25,40";
+        JsonNode preview = previewWithMapping(token, csv,
+                "{\"barcode\":\"Item Code\",\"name\":\"Product Name\",\"price\":\"Rate\",\"qty\":\"Stock Qty\"}");
+        mockMvc.perform(post("/api/v1/imports/" + preview.get("importId").asText() + "/commit")
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isCreated());
+
+        JsonNode created = objectMapper.readTree(mockMvc.perform(get("/api/v1/products?q=sprite")
+                        .header("Authorization", bearer(token)))
+                .andReturn().getResponse().getContentAsString());
+        assertEquals(1, created.get("items").size());
+        assertEquals("Sprite", created.get("items").get(0).get("name").asText());
+        assertBigEquals("25.00", created.get("items").get(0).get("sellingPrice"));
+        assertBigEquals("40.000", created.get("items").get(0).get("availableQty"));
+    }
+
+    private JsonNode previewWithCarton(String token, String csv, String mappingJson) throws Exception {
+        MockMultipartFile file = new MockMultipartFile("file", "stock.csv", "text/csv", csv.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        MvcResult result = mockMvc.perform(multipart("/api/v1/imports/preview")
+                        .file(file)
+                        .param("mapping", mappingJson)
+                        .param("carton", "true")
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isOk())
+                .andReturn();
+        return objectMapper.readTree(result.getResponse().getContentAsString());
+    }
+
+    @Test
+    void cartonModeDividesPriceAndMultipliesQtyOnCommit() throws Exception {
+        String token = adminToken();
+        String csv = "Item Code,Product Name,Rate,Qty\n"
+                + "5550000001,Coke 180MLx48Btls,4363.64,4";
+        JsonNode preview = previewWithCarton(token, csv,
+                "{\"barcode\":\"Item Code\",\"name\":\"Product Name\",\"price\":\"Rate\",\"qty\":\"Qty\"}");
+
+        assertEquals(1, preview.get("newCount").asInt());
+        assertEquals(0, preview.get("skipCount").asInt());
+
+        mockMvc.perform(post("/api/v1/imports/" + preview.get("importId").asText() + "/commit")
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isCreated());
+
+        JsonNode created = objectMapper.readTree(mockMvc.perform(get("/api/v1/products?q=coke")
+                        .header("Authorization", bearer(token)))
+                .andReturn().getResponse().getContentAsString());
+        assertEquals(1, created.get("items").size());
+        assertBigEquals("90.91", created.get("items").get(0).get("sellingPrice"));
+        assertBigEquals("192.000", created.get("items").get(0).get("availableQty"));
+    }
+
+    @Test
+    void cartonModeFlagsRowsWithoutDetectableCount() throws Exception {
+        String token = adminToken();
+        String csv = "Item Code,Product Name,Rate,Qty\n"
+                + "5550000002,Single Bottle 750ML,100,1";
+        JsonNode preview = previewWithCarton(token, csv,
+                "{\"barcode\":\"Item Code\",\"name\":\"Product Name\",\"price\":\"Rate\",\"qty\":\"Qty\"}");
+
+        assertEquals(0, preview.get("newCount").asInt());
+        assertTrue(preview.get("skipCount").asInt() >= 1);
+        assertTrue(preview.get("errors").size() >= 1);
+    }
+
     @Test
     void previewReportsNewAndUpdateCountsAndRowErrors() throws Exception {
         String token = adminToken();

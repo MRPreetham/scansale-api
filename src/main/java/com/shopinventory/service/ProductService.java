@@ -83,16 +83,16 @@ public class ProductService {
                 .orElseThrow(() -> ApiException.forbidden("Organization not found"));
         product.setOrg(org);
 
-        BigDecimal opening = request.openingQty() == null ? BigDecimal.ZERO : request.openingQty();
-        if (opening.signum() < 0) {
-            throw ApiException.badRequest("Opening quantity cannot be negative");
+        BigDecimal quantity = request.quantity() == null ? BigDecimal.ZERO : request.quantity();
+        if (quantity.signum() < 0) {
+            throw ApiException.badRequest("Quantity cannot be negative");
         }
-        product.setOpeningQty(opening);
-        product.setAvailableQty(opening);
+        product.setQuantity(quantity);
+        product.setAvailableQty(quantity);
         Product saved = productRepository.save(product);
 
-        if (opening.signum() > 0) {
-            stockMovementRepository.save(movement(orgId, saved, MovementType.OPENING, opening, principal.userId(), null));
+        if (quantity.signum() > 0) {
+            stockMovementRepository.save(movement(orgId, saved, MovementType.OPENING, quantity, principal.userId(), null));
         }
 
         auditService.log(orgId, userRepository.findById(principal.userId()).orElseThrow(),
@@ -113,8 +113,8 @@ public class ProductService {
             });
         }
         applyFields(product, request, true);
-        if (request.openingQty() != null) {
-            BigDecimal newQty = request.openingQty();
+        if (request.quantity() != null) {
+            BigDecimal newQty = request.quantity();
             if (newQty.signum() < 0) {
                 throw ApiException.badRequest("Quantity cannot be negative");
             }
@@ -217,7 +217,7 @@ public class ProductService {
     private ProductResponse toResponse(Product p) {
         return new ProductResponse(p.getId(), p.getSku(), p.getName(), p.getBarcode(), p.getUnit(),
                 p.getCostPrice(), p.getSellingPrice(), p.getProfitMargin(), p.getSize(),
-                p.getOpeningQty(), p.getAvailableQty(),
+                p.getQuantity(), p.getAvailableQty(),
                 p.getReorderLevel(), isLow(p), p.getNotes(), p.getCreatedAt(), p.getUpdatedAt());
     }
 

@@ -117,7 +117,7 @@ class ProductApiTest extends BaseApiTest {
         JsonNode created = postJson("/api/v1/products", token,
                 "{\"name\":\"Cola Bottle\",\"barcode\":\"1110000020\",\"unit\":\"ml\","
                         + "\"costPrice\":80,\"sellingPrice\":100,\"profitMargin\":25,\"size\":750,"
-                        + "\"openingQty\":10}", 201);
+                        + "\"quantity\":10}", 201);
         assertBigEquals("80.00", created.get("costPrice"));
         assertBigEquals("100.00", created.get("sellingPrice"));
         assertBigEquals("25.00", created.get("profitMargin"));
@@ -138,7 +138,7 @@ class ProductApiTest extends BaseApiTest {
         JsonNode product = createProduct(token, "Stock", "1110000021", 20, 5);
         assertBigEquals("5.000", product.get("availableQty"));
         JsonNode updated = putJson("/api/v1/products/" + product.get("id").asText(), token,
-                "{\"name\":\"Stock\",\"barcode\":\"1110000021\",\"openingQty\":8}", 200);
+                "{\"name\":\"Stock\",\"barcode\":\"1110000021\",\"quantity\":8}", 200);
         assertBigEquals("8.000", updated.get("availableQty"));
     }
 
@@ -156,7 +156,7 @@ class ProductApiTest extends BaseApiTest {
         String token = adminToken();
         JsonNode product = createProduct(token, "Neg", "1110000022", 20, 5);
         JsonNode error = putJson("/api/v1/products/" + product.get("id").asText(), token,
-                "{\"name\":\"Neg\",\"barcode\":\"1110000022\",\"openingQty\":-1}", 400);
+                "{\"name\":\"Neg\",\"barcode\":\"1110000022\",\"quantity\":-1}", 400);
         assertEquals("bad_request", error.get("error").asText());
     }
 

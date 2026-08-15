@@ -35,8 +35,10 @@ public class ImportController {
     @PostMapping("/preview")
     @PreAuthorize("hasAuthority('" + Capabilities.IMPORT_EXECUTE + "')")
     public ImportPreviewResponse preview(@AuthenticationPrincipal AppPrincipal principal,
-                                         @RequestPart("file") MultipartFile file) {
-        return csvImportService.preview(principal.orgId(), principal, file);
+                                         @RequestPart("file") MultipartFile file,
+                                         @RequestParam(value = "mapping", required = false) String mapping,
+                                         @RequestParam(value = "carton", defaultValue = "false") boolean carton) {
+        return csvImportService.preview(principal.orgId(), principal, file, mapping, carton);
     }
 
     @PostMapping("/{importId}/commit")

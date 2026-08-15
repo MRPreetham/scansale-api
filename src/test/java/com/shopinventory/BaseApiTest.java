@@ -139,7 +139,7 @@ public abstract class BaseApiTest {
 
     protected JsonNode createProduct(String token, String name, String barcode, double price, double qty) throws Exception {
         String body = "{\"name\":\"" + name + "\",\"barcode\":\"" + barcode + "\",\"unit\":\"pcs\","
-                + "\"sellingPrice\":" + price + ",\"openingQty\":" + qty + ",\"reorderLevel\":5}";
+                + "\"sellingPrice\":" + price + ",\"quantity\":" + qty + ",\"reorderLevel\":5}";
         return postJson("/api/v1/products", token, body, 201);
     }
 

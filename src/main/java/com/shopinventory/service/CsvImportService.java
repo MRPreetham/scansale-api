@@ -18,6 +18,7 @@ import com.shopinventory.domain.user.User;
 import com.shopinventory.domain.user.UserRepository;
 import com.shopinventory.security.AppPrincipal;
 import com.shopinventory.web.ApiException;
+import com.shopinventory.web.dto.Dtos.ColumnMapping;
 import com.shopinventory.web.dto.Dtos.ImportCommitResponse;
 import com.shopinventory.web.dto.Dtos.ImportHistoryPageResponse;
 import com.shopinventory.web.dto.Dtos.ImportHistoryResponse;
@@ -39,9 +40,6 @@ import java.util.UUID;
 
 @Service
 public class CsvImportService {
-
-    private record CsvRow(int row, String barcode, String name, String unit, BigDecimal price, BigDecimal qty) {
-    }
 
     private final StockImportRepository stockImportRepository;
     private final ProductRepository productRepository;
@@ -68,11 +66,17 @@ public class CsvImportService {
     }
 
     @Transactional
-    public ImportPreviewResponse preview(UUID orgId, AppPrincipal principal, MultipartFile file) {
-        List<CsvRow> rows;
-        List<RowError> errors = new ArrayList<>();
+    public ImportPreviewResponse preview(UUID orgId, AppPrincipal principal, MultipartFile file, String mappingJson, boolean carton) {
+        List<CsvRowParser.CsvRow> rows;
+        List<RowError> errors;
+        ColumnMapping mapping = parseMapping(mappingJson);
         try {
-            rows = parse(file, errors);
+            CsvRowParser.Outcome outcome = parse(file, mapping);
+            if (carton) {
+                outcome = CsvRowParser.applyCartonPricing(outcome);
+            }
+            errors = outcome.errors();
+            rows = outcome.rows();
         } catch (Exception e) {
             throw ApiException.badRequest("Could not read CSV: " + e.getMessage());
         }
@@ -85,7 +89,7 @@ public class CsvImportService {
         int newCount = 0;
         int updateCount = 0;
         int skipCount = errors.size();
-        for (CsvRow row : rows) {
+        for (CsvRowParser.CsvRow row : rows) {
             if (existing.containsKey(normalize(row.barcode()))) {
                 updateCount++;
             } else {
@@ -123,14 +127,14 @@ public class CsvImportService {
             throw ApiException.conflict("Import has already been processed");
         }
 
-        List<CsvRow> rows = fromJson(stockImport.getSummaryJson());
+        List<CsvRowParser.CsvRow> rows = fromJson(stockImport.getSummaryJson());
         Map<String, Product> existing = productsByBarcode(orgId);
 
         int newCount = 0;
         int updateCount = 0;
         int skipCount = 0;
 
-        for (CsvRow row : rows) {
+        for (CsvRowParser.CsvRow row : rows) {
             Product product = existing.get(normalize(row.barcode()));
             try {
                 if (product == null) {
@@ -143,7 +147,7 @@ public class CsvImportService {
                     product.setUnit(row.unit() == null ? "pcs" : row.unit());
                     product.setSellingPrice(row.price() == null ? BigDecimal.ZERO : row.price());
                     BigDecimal opening = row.qty() == null ? BigDecimal.ZERO : row.qty();
-                    product.setOpeningQty(opening);
+                    product.setQuantity(opening);
                     product.setAvailableQty(opening);
                     productRepository.save(product);
                     newCount++;
@@ -191,94 +195,32 @@ public class CsvImportService {
         return new ImportHistoryPageResponse(items, result.getTotalElements(), result.getNumber(), result.getSize());
     }
 
-    private List<CsvRow> parse(MultipartFile file, List<RowError> errors) throws Exception {
-        List<CsvRow> rows = new ArrayList<>();
+    private CsvRowParser.Outcome parse(MultipartFile file, ColumnMapping mapping) throws Exception {
+        List<String[]> raw;
         try (Reader reader = new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8);
              CSVReader csv = new CSVReader(reader)) {
-            String[] header = csv.readNext();
-            if (header == null) {
-                throw new IllegalArgumentException("Empty file");
-            }
-            Map<String, Integer> index = columnIndex(header);
-            Integer barcodeCol = index.get("barcode");
-            if (barcodeCol == null) {
-                throw new IllegalArgumentException("Missing required 'barcode' column");
-            }
-            Integer nameCol = index.get("name");
-            Integer unitCol = index.get("unit");
-            Integer priceCol = index.get("price");
-            Integer qtyCol = index.get("qty");
-
-            String[] values;
-            int rowNumber = 1;
-            while ((values = csv.readNext()) != null) {
-                rowNumber++;
-                if (isBlank(values)) continue;
-
-                String barcode = cell(values, barcodeCol);
-                if (barcode == null) {
-                    errors.add(new RowError(rowNumber, "Missing barcode"));
-                    continue;
-                }
-                BigDecimal price = null;
-                BigDecimal qty = null;
-                boolean valid = true;
-                if (priceCol != null) {
-                    String raw = cell(values, priceCol);
-                    if (raw != null) {
-                        try {
-                            price = new BigDecimal(raw);
-                        } catch (NumberFormatException e) {
-                            errors.add(new RowError(rowNumber, "Invalid price value '" + raw + "'"));
-                            valid = false;
-                        }
-                    }
-                }
-                if (qtyCol != null) {
-                    String raw = cell(values, qtyCol);
-                    if (raw != null) {
-                        try {
-                            qty = new BigDecimal(raw);
-                        } catch (NumberFormatException e) {
-                            errors.add(new RowError(rowNumber, "Invalid quantity value '" + raw + "'"));
-                            valid = false;
-                        }
-                    }
-                }
-                if (!valid) continue;
-                rows.add(new CsvRow(rowNumber, barcode, cell(values, nameCol), cell(values, unitCol), price, qty));
-            }
+            raw = csv.readAll();
         }
-        return rows;
+        if (raw.isEmpty()) {
+            throw new IllegalArgumentException("Empty file");
+        }
+        String[] header = raw.get(0);
+        Map<String, Integer> cols = mapping == null
+                ? CsvRowParser.autoDetect(header)
+                : CsvRowParser.resolve(header, mapping);
+        if (cols.get("barcode") == null) {
+            throw new IllegalArgumentException("A barcode column must be mapped");
+        }
+        return CsvRowParser.parseRows(raw, cols);
     }
 
-    private Map<String, Integer> columnIndex(String[] header) {
-        Map<String, Integer> index = new HashMap<>();
-        for (int i = 0; i < header.length; i++) {
-            String raw = header[i] == null ? "" : header[i].trim().toLowerCase()
-                    .replace("_", " ").replace("-", " ").replaceAll("\\s+", " ");
-            if (raw.contains("barcode") || raw.contains("code")) index.putIfAbsent("barcode", i);
-            else if (raw.contains("name") || raw.contains("product")) index.putIfAbsent("name", i);
-            else if (raw.contains("unit")) index.putIfAbsent("unit", i);
-            else if (raw.contains("price") || raw.contains("rate")) index.putIfAbsent("price", i);
-            else if (raw.contains("qty") || raw.contains("quantity") || raw.contains("stock") || raw.contains("opening")) index.putIfAbsent("qty", i);
+    private ColumnMapping parseMapping(String mappingJson) {
+        if (mappingJson == null || mappingJson.isBlank()) return null;
+        try {
+            return objectMapper.readValue(mappingJson, ColumnMapping.class);
+        } catch (JsonProcessingException e) {
+            throw ApiException.badRequest("Invalid column mapping");
         }
-        return index;
-    }
-
-    private String cell(String[] values, Integer col) {
-        if (col == null || col >= values.length) return null;
-        String value = values[col];
-        if (value == null) return null;
-        String trimmed = value.trim();
-        return trimmed.isEmpty() ? null : trimmed;
-    }
-
-    private boolean isBlank(String[] values) {
-        for (String value : values) {
-            if (value != null && !value.trim().isEmpty()) return false;
-        }
-        return true;
     }
 
     private Map<String, Product> productsByBarcode(UUID orgId) {
@@ -305,7 +247,7 @@ public class CsvImportService {
         return movement;
     }
 
-    private String toJson(List<CsvRow> rows) {
+    private String toJson(List<CsvRowParser.CsvRow> rows) {
         try {
             return objectMapper.writeValueAsString(rows);
         } catch (JsonProcessingException e) {
@@ -313,10 +255,10 @@ public class CsvImportService {
         }
     }
 
-    private List<CsvRow> fromJson(String json) {
+    private List<CsvRowParser.CsvRow> fromJson(String json) {
         if (json == null || json.isBlank()) return List.of();
         try {
-            return objectMapper.readValue(json, new TypeReference<List<CsvRow>>() {
+            return objectMapper.readValue(json, new TypeReference<List<CsvRowParser.CsvRow>>() {
             });
         } catch (JsonProcessingException e) {
             throw ApiException.badRequest("Stored import data is unreadable");

@@ -62,7 +62,7 @@ public class Product {
     private BigDecimal size;
 
     @Column(nullable = false, precision = 15, scale = 3)
-    private BigDecimal openingQty = BigDecimal.ZERO;
+    private BigDecimal quantity = BigDecimal.ZERO;
 
     @Column(nullable = false, precision = 15, scale = 3)
     private BigDecimal availableQty = BigDecimal.ZERO;

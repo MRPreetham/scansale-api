@@ -42,7 +42,7 @@ class RbacApiTest extends BaseApiTest {
     void inventoryManagerCanCreateProductButCannotDelete() throws Exception {
         String token = createUserAndLogin("inv2@shop.local", OrgRole.INVENTORY);
         JsonNode product = postJson("/api/v1/products", token,
-                "{\"name\":\"InvItem\",\"barcode\":\"880800003\",\"sellingPrice\":9,\"openingQty\":2}", 201);
+                "{\"name\":\"InvItem\",\"barcode\":\"880800003\",\"sellingPrice\":9,\"quantity\":2}", 201);
         assertTrue(product.has("id"));
         mockMvc.perform(delete("/api/v1/products/" + product.get("id").asText())
                         .header("Authorization", bearer(token)))

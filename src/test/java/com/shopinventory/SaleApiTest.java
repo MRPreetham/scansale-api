@@ -101,7 +101,7 @@ class SaleApiTest extends BaseApiTest {
         String token = adminToken();
         postJson("/api/v1/products", token,
                 "{\"name\":\"Cola Bottle\",\"barcode\":\"2220000007\",\"unit\":\"ml\","
-                        + "\"costPrice\":80,\"sellingPrice\":100,\"profitMargin\":25,\"size\":750,\"openingQty\":10}", 201);
+                        + "\"costPrice\":80,\"sellingPrice\":100,\"profitMargin\":25,\"size\":750,\"quantity\":10}", 201);
         JsonNode sale = postJson("/api/v1/sales", token,
                 "{\"lines\":[{\"barcode\":\"2220000007\",\"qty\":2}],\"paymentMode\":\"CASH\"}", 201);
         assertEquals("Test Shop", sale.get("shop").get("name").asText());

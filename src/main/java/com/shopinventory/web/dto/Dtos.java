@@ -42,14 +42,14 @@ public final class Dtos {
             BigDecimal profitMargin,
             BigDecimal size,
             BigDecimal reorderLevel,
-            BigDecimal openingQty,
+            BigDecimal quantity,
             String notes) {
     }
 
     public record ProductResponse(
             UUID id, String sku, String name, String barcode, String unit,
             BigDecimal costPrice, BigDecimal sellingPrice, BigDecimal profitMargin, BigDecimal size,
-            BigDecimal openingQty, BigDecimal availableQty,
+            BigDecimal quantity, BigDecimal availableQty,
             BigDecimal reorderLevel, boolean lowStock, String notes,
             java.time.Instant createdAt, java.time.Instant updatedAt) {
     }
@@ -58,6 +58,9 @@ public final class Dtos {
     }
 
     public record AdjustStockRequest(java.math.BigDecimal newQuantity, String reason) {
+    }
+
+    public record ColumnMapping(String barcode, String name, String unit, String price, String qty) {
     }
 
     public record SaleLineRequest(@NotBlank String barcode, java.math.BigDecimal qty) {
